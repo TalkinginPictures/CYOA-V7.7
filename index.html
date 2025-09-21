@@ -16,42 +16,34 @@
       text-align: center;
     }
     #game-container {
-      max-width: 600px;
+      max-width: 700px;
       background: white;
       padding: 20px;
       border-radius: 20px;
       box-shadow: 0 4px 10px rgba(0,0,0,0.2);
     }
     .option {
-      margin: 10px 0;
+      margin: 10px;
       cursor: pointer;
       display: inline-block;
       padding: 10px;
       border-radius: 12px;
       border: 2px solid #ccc;
       transition: 0.2s;
+      width: 150px;
+      text-align: center;
+      vertical-align: top;
+    }
+    .option img {
+      max-width: 100%;
+      height: 100px;
+      object-fit: contain;
+      display: block;
+      margin: 0 auto 5px;
     }
     .option:hover {
       background: #f0f8ff;
       transform: scale(1.05);
-    }
-    #summary {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-      gap: 10px;
-    }
-    button {
-      margin-top: 15px;
-      padding: 10px 15px;
-      border: none;
-      border-radius: 10px;
-      background: #4CAF50;
-      color: white;
-      font-size: 16px;
-      cursor: pointer;
-    }
-    button:hover {
-      background: #45a049;
     }
   </style>
 </head>
@@ -59,26 +51,47 @@
   <div id="game-container">
     <h2 id="question">Loading...</h2>
     <div id="options"></div>
-    <div id="summary" style="display:none;"></div>
-    <button id="downloadBtn" style="display:none;">Download Your Story</button>
-    <button id="replayBtn" style="display:none;">Play Again</button>
   </div>
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script>
+    const pixabayKey = "49978957-7f3f3c500656460c1f5b4026f";
     const questions = [
       { text: "What is your name?", type: "input" },
-      { text: "What will you wear on your adventure?", options: ["Knight Armour", "Pirate Outfit", "Wizard Robe", "Explorer Gear"], category: "Clothing" },
-      { text: "Who will be your friend?", options: ["Dragon", "Fairy", "Giant", "Robot"], category: "Friend" },
-      { text: "What will be your challenge?", options: ["Climb a mountain", "Solve a riddle", "Escape a maze", "Find treasure"], category: "Challenge" },
-      { text: "Who will be your rival?", options: ["Witch", "Bandit", "Trickster", "Samurai"], category: "Rival" },
-      { text: "Where will your adventure take place?", options: ["Forest", "Desert", "Castle", "Space"], category: "Location" },
-      { text: "What music will guide your quest?", options: ["K-Pop", "Hip Hop", "R&B", "Pop", "Rock", "Reggae", "Afrobeat"], category: "Music" }
+      { text: "What will you wear on your adventure?", 
+        options: ["Knight Armour", "Pirate Outfit", "Wizard Robe", "Ninja Suit", "Space Suit", "Explorer Gear", "Royal Clothes", "Superhero Costume", "Pajamas"], 
+        category: "Clothing", 
+        withImages: true }
     ];
 
     const results = [];
     let currentQuestion = 0;
     let studentName = "";
+
+    async function fetchImage(query) {
+      // Try ARASAAC first
+      try {
+        const arasaacRes = await fetch(`https://api.arasaac.org/api/pictograms/en/search/${encodeURIComponent(query)}`);
+        const arasaacData = await arasaacRes.json();
+        if (arasaacData.length > 0) {
+          return `https://static.arasaac.org/pictograms/${arasaacData[0]._id}/${arasaacData[0]._id}_500.png`;
+        }
+      } catch (e) {
+        console.warn("ARASAAC fetch failed for", query, e);
+      }
+
+      // Fallback: Pixabay
+      try {
+        const pixabayRes = await fetch(`https://pixabay.com/api/?key=${pixabayKey}&q=${encodeURIComponent(query)}&image_type=illustration&per_page=3`);
+        const pixabayData = await pixabayRes.json();
+        if (pixabayData.hits && pixabayData.hits.length > 0) {
+          return pixabayData.hits[0].webformatURL;
+        }
+      } catch (e) {
+        console.warn("Pixabay fetch failed for", query, e);
+      }
+
+      return null; // No image found
+    }
 
     function speak(text, callback) {
       try {
@@ -97,16 +110,13 @@
       }
     }
 
-    function loadQuestion() {
+    async function loadQuestion() {
       const q = questions[currentQuestion];
       const questionEl = document.getElementById("question");
       const optionsEl = document.getElementById("options");
       optionsEl.innerHTML = "";
-      document.getElementById("summary").style.display = "none";
-      document.getElementById("downloadBtn").style.display = "none";
-      document.getElementById("replayBtn").style.display = "none";
 
-      if (!q) return; // failsafe
+      if (!q) return;
 
       if (q.type === "input") {
         questionEl.textContent = q.text;
@@ -125,20 +135,32 @@
         optionsEl.appendChild(btn);
       } else {
         questionEl.textContent = q.text;
-        speak(q.text, () => {
+        speak(q.text);
+        if (q.withImages) {
+          for (const option of q.options) {
+            const imgUrl = await fetchImage(option);
+            const div = document.createElement("div");
+            div.className = "option";
+            div.innerHTML = imgUrl 
+              ? `<img src="${imgUrl}" alt="${option}"><div>${option}</div>` 
+              : `<div style="height:100px;display:flex;align-items:center;justify-content:center;">❓</div><div>${option}</div>`;
+            div.onclick = () => handleChoice(option, imgUrl);
+            optionsEl.appendChild(div);
+          }
+        } else {
           q.options.forEach(option => {
             const div = document.createElement("div");
             div.className = "option";
             div.textContent = option;
-            div.onclick = () => handleChoice(option, q.category);
+            div.onclick = () => handleChoice(option, null);
             optionsEl.appendChild(div);
           });
-        });
+        }
       }
     }
 
-    function handleChoice(choice, category) {
-      results.push({ category, choice });
+    function handleChoice(choice, imgUrl) {
+      results.push({ category: questions[currentQuestion].category, choice, imgUrl });
       const affirmations = [
         `Great choice, ${studentName}!`,
         `Well done ${studentName}, let's keep going!`,
@@ -148,45 +170,10 @@
       const message = affirmations[Math.floor(Math.random() * affirmations.length)];
       speak(message, () => {
         currentQuestion++;
-        if (currentQuestion < questions.length) {
-          setTimeout(loadQuestion, 700); // delay before next question
-        } else {
-          showSummary();
-        }
+        loadQuestion();
       });
     }
 
-    function showSummary() {
-      const questionEl = document.getElementById("question");
-      const optionsEl = document.getElementById("options");
-      const summaryEl = document.getElementById("summary");
-      questionEl.textContent = `${studentName}, here is your adventure story!`;
-      optionsEl.innerHTML = "";
-      summaryEl.style.display = "grid";
-      summaryEl.innerHTML = results.map(r => `<div><strong>${r.category}</strong><br>${r.choice}</div>`).join("");
-      document.getElementById("downloadBtn").style.display = "inline-block";
-      document.getElementById("replayBtn").style.display = "inline-block";
-
-      speak(`${studentName}, here is your adventure! ${results.map(r => r.choice).join(", ")}`);
-    }
-
-    document.getElementById("downloadBtn").onclick = () => {
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF();
-      doc.text(`${studentName}'s Adventure`, 10, 10);
-      results.forEach((r, i) => {
-        doc.text(`${r.category}: ${r.choice}`, 10, 20 + i * 10);
-      });
-      doc.save("adventure.pdf");
-    };
-
-    document.getElementById("replayBtn").onclick = () => {
-      results.length = 0;
-      currentQuestion = 0;
-      loadQuestion();
-    };
-
-    // ✅ Start game
     window.onload = loadQuestion;
   </script>
 </body>
