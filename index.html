@@ -2,179 +2,193 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Adventure Builder</title>
+  <title>Adventure Creator</title>
   <style>
     body {
       font-family: Arial, sans-serif;
-      background: linear-gradient(to bottom, #87ceeb, #ffffff);
+      background: linear-gradient(to bottom right, #87CEEB, #f5f5f5);
       display: flex;
-      flex-direction: column;
-      align-items: center;
       justify-content: center;
-      min-height: 100vh;
+      align-items: center;
+      height: 100vh;
       margin: 0;
       text-align: center;
     }
-    #game-container {
-      max-width: 700px;
+    .container {
       background: white;
       padding: 20px;
-      border-radius: 20px;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+      border-radius: 15px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      max-width: 800px;
+      width: 90%;
+    }
+    .options {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 15px;
+      margin-top: 20px;
     }
     .option {
-      margin: 10px;
-      cursor: pointer;
-      display: inline-block;
-      padding: 10px;
-      border-radius: 12px;
       border: 2px solid #ccc;
-      transition: 0.2s;
-      width: 150px;
-      text-align: center;
-      vertical-align: top;
+      border-radius: 12px;
+      padding: 10px;
+      cursor: pointer;
+      background: #f9f9f9;
+      transition: transform 0.2s ease;
     }
     .option img {
       max-width: 100%;
-      height: 100px;
-      object-fit: contain;
-      display: block;
-      margin: 0 auto 5px;
+      border-radius: 10px;
     }
     .option:hover {
-      background: #f0f8ff;
       transform: scale(1.05);
+      border-color: #007bff;
+    }
+    button {
+      margin-top: 20px;
+      padding: 10px 15px;
+      border: none;
+      background: #007bff;
+      color: white;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    #summary-images {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+    }
+    #summary-images img {
+      max-width: 100px;
+      border-radius: 10px;
     }
   </style>
 </head>
 <body>
-  <div id="game-container">
-    <h2 id="question">Loading...</h2>
-    <div id="options"></div>
+  <div class="container" id="app">
+    <h1>Loading...</h1>
   </div>
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script>
-    const pixabayKey = "49978957-7f3f3c500656460c1f5b4026f";
-    const questions = [
-      { text: "What is your name?", type: "input" },
-      { text: "What will you wear on your adventure?", 
-        options: ["Knight Armour", "Pirate Outfit", "Wizard Robe", "Ninja Suit", "Space Suit", "Explorer Gear", "Royal Clothes", "Superhero Costume", "Pajamas"], 
-        category: "Clothing", 
-        withImages: true }
+    const app = document.getElementById("app");
+
+    let studentName = "";
+    let currentQuestionIndex = 0;
+    let choices = [];
+
+    const affirmations = [
+      "Great choice!",
+      "Well done!",
+      "Nice pick!",
+      "Excellent!",
+      "That’s a fun option!"
     ];
 
-    const results = [];
-    let currentQuestion = 0;
-    let studentName = "";
+    const questions = [
+      { text: "What will you wear on your adventure?", options: ["Knight", "Pirate", "Wizard", "Explorer", "Astronaut", "Detective", "Samurai", "Superhero", "Farmer"] },
+      { text: "What will you take with you?", options: ["Sword", "Map", "Magic Wand", "Shield", "Backpack", "Torch", "Treasure Chest", "Fishing Rod", "Key"] },
+      { text: "Who will join you?", options: ["Dragon", "Dog", "Cat", "Friend", "Wizard", "Giant", "Elf", "Robot", "Knight"] },
+      { text: "What music will play?", options: ["Drums", "Flute", "Guitar", "Trumpet", "Piano", "Violin", "Singing", "Whistling", "Silence"] },
+      { text: "Where will your adventure happen?", options: ["Forest", "Castle", "Space", "Desert", "Ocean", "Mountain", "Cave", "Jungle", "City"] },
+      { text: "What challenge will you face?", options: ["Riddle", "Storm", "Monster", "Puzzle", "Maze", "River", "Volcano", "Race", "Bandits"] },
+      { text: "What will you find at the end?", options: ["Treasure", "Cake", "Magic Book", "Crown", "Key", "New Friend", "Door", "Ship", "Throne"] }
+    ];
 
-    async function fetchImage(query) {
-      // Try ARASAAC first
+    async function fetchImage(keyword) {
       try {
-        const arasaacRes = await fetch(`https://api.arasaac.org/api/pictograms/en/search/${encodeURIComponent(query)}`);
-        const arasaacData = await arasaacRes.json();
-        if (arasaacData.length > 0) {
-          return `https://static.arasaac.org/pictograms/${arasaacData[0]._id}/${arasaacData[0]._id}_500.png`;
+        // Try ARASAAC first
+        let response = await fetch(`https://api.arasaac.org/api/pictograms/en/search/${keyword}`);
+        let data = await response.json();
+        if (data.length > 0) {
+          return `https://static.arasaac.org/pictograms/${data[0]._id}/${data[0]._id}_500.png`;
         }
-      } catch (e) {
-        console.warn("ARASAAC fetch failed for", query, e);
-      }
-
-      // Fallback: Pixabay
-      try {
-        const pixabayRes = await fetch(`https://pixabay.com/api/?key=${pixabayKey}&q=${encodeURIComponent(query)}&image_type=illustration&per_page=3`);
-        const pixabayData = await pixabayRes.json();
-        if (pixabayData.hits && pixabayData.hits.length > 0) {
+        // Fallback: Pixabay
+        let pixabayRes = await fetch(`https://pixabay.com/api/?key=49978957-7f3f3c500656460c1f5b4026f&q=${encodeURIComponent(keyword)}&image_type=illustration&per_page=3`);
+        let pixabayData = await pixabayRes.json();
+        if (pixabayData.hits.length > 0) {
           return pixabayData.hits[0].webformatURL;
         }
       } catch (e) {
-        console.warn("Pixabay fetch failed for", query, e);
+        console.warn("Image fetch error for:", keyword, e);
       }
-
-      return null; // No image found
+      return "https://via.placeholder.com/120?text=" + keyword;
     }
 
     function speak(text, callback) {
-      try {
-        const synth = window.speechSynthesis;
-        if (!synth) {
-          console.warn("Speech synthesis not supported");
-          if (callback) callback();
-          return;
-        }
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.onend = () => callback && callback();
-        synth.speak(utterance);
-      } catch (e) {
-        console.warn("Speech error:", e);
-        if (callback) callback();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.onend = () => { if (callback) callback(); };
+      speechSynthesis.speak(utterance);
+    }
+
+    function showNameScreen() {
+      app.innerHTML = `
+        <h1>Welcome to your adventure!</h1>
+        <p>What is your name?</p>
+        <input type="text" id="nameInput" placeholder="Type your name">
+        <button onclick="startAdventure()">Start</button>
+      `;
+    }
+
+    function startAdventure() {
+      studentName = document.getElementById("nameInput").value || "Adventurer";
+      currentQuestionIndex = 0;
+      choices = [];
+      showQuestion();
+    }
+
+    async function showQuestion() {
+      const q = questions[currentQuestionIndex];
+      app.innerHTML = `<h1>${q.text}</h1><div class="options" id="options"></div>`;
+      speak(`${studentName}, ${q.text}`);
+      const optionsDiv = document.getElementById("options");
+      for (const opt of q.options) {
+        const img = await fetchImage(opt);
+        const div = document.createElement("div");
+        div.className = "option";
+        div.innerHTML = `<img src="${img}" alt="${opt}"><p>${opt}</p>`;
+        div.onclick = () => handleChoice(opt, img);
+        optionsDiv.appendChild(div);
       }
     }
 
-    async function loadQuestion() {
-      const q = questions[currentQuestion];
-      const questionEl = document.getElementById("question");
-      const optionsEl = document.getElementById("options");
-      optionsEl.innerHTML = "";
-
-      if (!q) return;
-
-      if (q.type === "input") {
-        questionEl.textContent = q.text;
-        const input = document.createElement("input");
-        input.placeholder = "Type your name here";
-        const btn = document.createElement("button");
-        btn.textContent = "Start";
-        btn.onclick = () => {
-          studentName = input.value.trim() || "Adventurer";
-          speak(`Welcome ${studentName}! Let's begin your adventure!`, () => {
-            currentQuestion++;
-            loadQuestion();
-          });
-        };
-        optionsEl.appendChild(input);
-        optionsEl.appendChild(btn);
-      } else {
-        questionEl.textContent = q.text;
-        speak(q.text);
-        if (q.withImages) {
-          for (const option of q.options) {
-            const imgUrl = await fetchImage(option);
-            const div = document.createElement("div");
-            div.className = "option";
-            div.innerHTML = imgUrl 
-              ? `<img src="${imgUrl}" alt="${option}"><div>${option}</div>` 
-              : `<div style="height:100px;display:flex;align-items:center;justify-content:center;">❓</div><div>${option}</div>`;
-            div.onclick = () => handleChoice(option, imgUrl);
-            optionsEl.appendChild(div);
-          }
+    function handleChoice(choice, img) {
+      choices.push({ question: questions[currentQuestionIndex].text, choice, img });
+      const affirmation = affirmations[Math.floor(Math.random() * affirmations.length)];
+      speak(`${affirmation}`, () => {
+        currentQuestionIndex++;
+        if (currentQuestionIndex < questions.length) {
+          showQuestion();
         } else {
-          q.options.forEach(option => {
-            const div = document.createElement("div");
-            div.className = "option";
-            div.textContent = option;
-            div.onclick = () => handleChoice(option, null);
-            optionsEl.appendChild(div);
-          });
+          showSummary();
         }
-      }
-    }
-
-    function handleChoice(choice, imgUrl) {
-      results.push({ category: questions[currentQuestion].category, choice, imgUrl });
-      const affirmations = [
-        `Great choice, ${studentName}!`,
-        `Well done ${studentName}, let's keep going!`,
-        `Awesome pick, ${studentName}!`,
-        `Nice one! Ready for the next challenge?`
-      ];
-      const message = affirmations[Math.floor(Math.random() * affirmations.length)];
-      speak(message, () => {
-        currentQuestion++;
-        loadQuestion();
       });
     }
 
-    window.onload = loadQuestion;
+    function showSummary() {
+      app.innerHTML = `<h1>Great job, ${studentName}!</h1><div id="summary-images"></div><button onclick="startAdventure()">Play Again</button><button onclick="downloadPDF()">Download Story</button>`;
+      const summaryImagesDiv = document.getElementById("summary-images");
+      let storyText = `${studentName}, here is your adventure:\n\n`;
+      choices.forEach(c => {
+        storyText += `${c.question} You chose: ${c.choice}.\n`;
+        const imgEl = document.createElement("img");
+        imgEl.src = c.img;
+        summaryImagesDiv.appendChild(imgEl);
+      });
+      speak(`${studentName}, here is your story!`);
+      window.generatedStoryText = storyText;
+    }
+
+    function downloadPDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      doc.setFontSize(14);
+      doc.text(window.generatedStoryText, 10, 10);
+      doc.save("adventure.pdf");
+    }
+
+    showNameScreen();
   </script>
 </body>
 </html>
