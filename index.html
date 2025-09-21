@@ -35,3 +35,159 @@
       background: #f0f8ff;
       transform: scale(1.05);
     }
+    #summary {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: 10px;
+    }
+    button {
+      margin-top: 15px;
+      padding: 10px 15px;
+      border: none;
+      border-radius: 10px;
+      background: #4CAF50;
+      color: white;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #45a049;
+    }
+  </style>
+</head>
+<body>
+  <div id="game-container">
+    <h2 id="question">Loading...</h2>
+    <div id="options"></div>
+    <div id="summary" style="display:none;"></div>
+    <button id="downloadBtn" style="display:none;">Download Your Story</button>
+    <button id="replayBtn" style="display:none;">Play Again</button>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script>
+    const questions = [
+      { text: "What is your name?", type: "input" },
+      { text: "What will you wear on your adventure?", options: ["Knight Armour", "Pirate Outfit", "Wizard Robe", "Explorer Gear"], category: "Clothing" },
+      { text: "Who will be your friend?", options: ["Dragon", "Fairy", "Giant", "Robot"], category: "Friend" },
+      { text: "What will be your challenge?", options: ["Climb a mountain", "Solve a riddle", "Escape a maze", "Find treasure"], category: "Challenge" },
+      { text: "Who will be your rival?", options: ["Witch", "Bandit", "Trickster", "Samurai"], category: "Rival" },
+      { text: "Where will your adventure take place?", options: ["Forest", "Desert", "Castle", "Space"], category: "Location" },
+      { text: "What music will guide your quest?", options: ["K-Pop", "Hip Hop", "R&B", "Pop", "Rock", "Reggae", "Afrobeat"], category: "Music" }
+    ];
+
+    const results = [];
+    let currentQuestion = 0;
+    let studentName = "";
+
+    function speak(text, callback) {
+      try {
+        const synth = window.speechSynthesis;
+        if (!synth) {
+          console.warn("Speech synthesis not supported");
+          if (callback) callback();
+          return;
+        }
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.onend = () => callback && callback();
+        synth.speak(utterance);
+      } catch (e) {
+        console.warn("Speech error:", e);
+        if (callback) callback();
+      }
+    }
+
+    function loadQuestion() {
+      const q = questions[currentQuestion];
+      const questionEl = document.getElementById("question");
+      const optionsEl = document.getElementById("options");
+      optionsEl.innerHTML = "";
+      document.getElementById("summary").style.display = "none";
+      document.getElementById("downloadBtn").style.display = "none";
+      document.getElementById("replayBtn").style.display = "none";
+
+      if (!q) return; // failsafe
+
+      if (q.type === "input") {
+        questionEl.textContent = q.text;
+        const input = document.createElement("input");
+        input.placeholder = "Type your name here";
+        const btn = document.createElement("button");
+        btn.textContent = "Start";
+        btn.onclick = () => {
+          studentName = input.value.trim() || "Adventurer";
+          speak(`Welcome ${studentName}! Let's begin your adventure!`, () => {
+            currentQuestion++;
+            loadQuestion();
+          });
+        };
+        optionsEl.appendChild(input);
+        optionsEl.appendChild(btn);
+      } else {
+        questionEl.textContent = q.text;
+        speak(q.text, () => {
+          q.options.forEach(option => {
+            const div = document.createElement("div");
+            div.className = "option";
+            div.textContent = option;
+            div.onclick = () => handleChoice(option, q.category);
+            optionsEl.appendChild(div);
+          });
+        });
+      }
+    }
+
+    function handleChoice(choice, category) {
+      results.push({ category, choice });
+      const affirmations = [
+        `Great choice, ${studentName}!`,
+        `Well done ${studentName}, let's keep going!`,
+        `Awesome pick, ${studentName}!`,
+        `Nice one! Ready for the next challenge?`
+      ];
+      const message = affirmations[Math.floor(Math.random() * affirmations.length)];
+      speak(message, () => {
+        currentQuestion++;
+        if (currentQuestion < questions.length) {
+          setTimeout(loadQuestion, 700); // delay before next question
+        } else {
+          showSummary();
+        }
+      });
+    }
+
+    function showSummary() {
+      const questionEl = document.getElementById("question");
+      const optionsEl = document.getElementById("options");
+      const summaryEl = document.getElementById("summary");
+      questionEl.textContent = `${studentName}, here is your adventure story!`;
+      optionsEl.innerHTML = "";
+      summaryEl.style.display = "grid";
+      summaryEl.innerHTML = results.map(r => `<div><strong>${r.category}</strong><br>${r.choice}</div>`).join("");
+      document.getElementById("downloadBtn").style.display = "inline-block";
+      document.getElementById("replayBtn").style.display = "inline-block";
+
+      speak(`${studentName}, here is your adventure! ${results.map(r => r.choice).join(", ")}`);
+    }
+
+    document.getElementById("downloadBtn").onclick = () => {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      doc.text(`${studentName}'s Adventure`, 10, 10);
+      results.forEach((r, i) => {
+        doc.text(`${r.category}: ${r.choice}`, 10, 20 + i * 10);
+      });
+      doc.save("adventure.pdf");
+    };
+
+    document.getElementById("replayBtn").onclick = () => {
+      results.length = 0;
+      currentQuestion = 0;
+      loadQuestion();
+    };
+
+    // ✅ Start game
+    window.onload = loadQuestion;
+  </script>
+</body>
+</html>
